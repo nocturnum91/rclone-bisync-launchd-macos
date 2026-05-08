@@ -1,0 +1,58 @@
+#!/bin/zsh
+# rclone bisync wrapper with shlock-based concurrency guard.
+# Replace placeholders before installing. All substitutions use shell-quoted form.
+
+REMOTE={{REMOTE_SH}}
+LOCAL_PATH={{LOCAL_PATH_SH}}
+LABEL_PREFIX={{LABEL_PREFIX_SH}}
+RCLONE_BIN={{RCLONE_BIN_SH}}
+SCRIPTS_DIR={{SCRIPTS_DIR_SH}}
+HOME_DIR={{HOME_SH}}
+MAX_DELETE_PERCENT={{MAX_DELETE_PERCENT_SH}}
+BACKUP_FLAGS=({{BACKUP_FLAGS_SH}})
+
+LOCK="/tmp/${LABEL_PREFIX}.lock"
+if ! /usr/bin/shlock -f "$LOCK" -p $$; then
+    exit 0
+fi
+# Owner-checked lock cleanup: only remove the lock if it still references our
+# PID. Without this, a sibling sync that grabbed the lock after a manual
+# delete + re-acquire could be unlocked by our EXIT trap.
+release_lock() {
+    if [[ -f "$LOCK" ]] && [[ "$(/bin/cat "$LOCK" 2>/dev/null)" == "$$" ]]; then
+        rm -f "$LOCK"
+    fi
+}
+trap release_lock EXIT
+
+# Forward signals to the rclone child so launchd unload (SIGTERM) gracefully
+# stops the bisync run instead of orphaning it. The PID may not be set yet
+# when a signal arrives — guard against `kill 0`, which signals the whole
+# process group instead of being a no-op.
+RCLONE_PID=
+forward_rclone_signal() {
+    local sig="$1" code="$2"
+    if [[ -n "${RCLONE_PID:-}" ]]; then
+        kill "-$sig" "$RCLONE_PID" 2>/dev/null || true
+        wait "$RCLONE_PID" 2>/dev/null || true
+    fi
+    exit "$code"
+}
+trap 'forward_rclone_signal INT 130'  INT
+trap 'forward_rclone_signal TERM 143' TERM
+
+if [ -d "$LOCAL_PATH" ]; then
+    "$RCLONE_BIN" bisync "$REMOTE" "$LOCAL_PATH" \
+        --filter-from "${SCRIPTS_DIR}/${LABEL_PREFIX}-filter.txt" \
+        --check-access \
+        --resilient \
+        --recover \
+        --max-lock 2m \
+        --max-delete "$MAX_DELETE_PERCENT" \
+        --conflict-resolve newer \
+        "${BACKUP_FLAGS[@]}" \
+        --log-file "${HOME_DIR}/Library/Logs/${LABEL_PREFIX}.log" \
+        --log-level INFO &
+    RCLONE_PID=$!
+    wait "$RCLONE_PID"
+fi

@@ -1,0 +1,30 @@
+#!/bin/zsh
+# fswatch-based change detector. Triggers sync.sh after debounce window.
+# Replace placeholders before installing. All substitutions use shell-quoted form.
+
+LOCAL_DIR={{LOCAL_PATH_SH}}
+SYNC={{SYNC_SCRIPT_SH}}
+FSWATCH_BIN={{FSWATCH_BIN_SH}}
+
+if [ ! -d "$LOCAL_DIR" ]; then
+    # Local path not mounted/present. Exit 0 so launchd's PathState (only restart
+    # while $LOCAL_DIR exists) doesn't loop us. Sleep first to dampen any race
+    # at unmount time.
+    /bin/sleep 60
+    exit 0
+fi
+
+# fswatch excludes: high-churn paths that would re-trigger sync constantly.
+# Edit/extend these for your workflow (e.g. IDE caches, app state files, build outputs).
+# See README "Application-specific exclude patterns" for common app suggestions.
+"$FSWATCH_BIN" \
+    -o \
+    --latency {{DEBOUNCE_SEC}} \
+    --recursive \
+    --exclude '\.DS_Store$' \
+    --exclude 'node_modules/' \
+    --exclude '\.git/' \
+    "$LOCAL_DIR" \
+    | while read -r _; do
+        "$SYNC"
+    done

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{{LABEL_PREFIX_XML}}-watch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>{{SCRIPTS_DIR_XML}}/{{LABEL_PREFIX_XML}}-watch.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>PathState</key>
+        <dict>
+            <key>{{LOCAL_PATH_XML}}</key>
+            <true/>
+        </dict>
+    </dict>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+    <key>StandardOutPath</key>
+    <string>{{HOME_XML}}/Library/Logs/{{LABEL_PREFIX_XML}}-watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{HOME_XML}}/Library/Logs/{{LABEL_PREFIX_XML}}-watch-error.log</string>
+</dict>
+</plist>
